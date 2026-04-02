@@ -55,7 +55,7 @@ Vous trouverez un certain nombre de fichier préfixés par `PAD-xx`. Ce sont les
 
 ### Les énoncés de TP
 
-Tous les fichiers préfixés `TP-xxC` sont les énoncés des exercices à faire.
+Tous les fichiers préfixés `TP-xxE` sont les énoncés des exercices à faire.
 
 ### Les mémentos
 
