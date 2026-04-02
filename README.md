@@ -1,1 +1,62 @@
-# ElasticStack_skeleton
+# Guide du projet SciPulse
+
+## Introduction
+
+Le projet SciPulse a pour objectif d'explorer un pipeline de traitement de données (un « ETL ») autour de la pile **EslasticStack**.
+Celle-ci se compose de trois éléments distincts :
+- **Elasticsearch** : l'espace de stockage + uun moteur de recherche dérivé de **Lucene** ;
+- **Logstash**  : Un outils d'ingestion et de traitement des données ;
+- **Kibana** : un outil de visualisation et d'inspection de données
+
+Au-delà de ce noyau, le projet utilise aussi :
+- **MinIO** : un outil de stockage répliquant des buckets S3 d'AWS sur un disque local
+- **PostgreSQL** : une base de données relationnelle (en réalité, désormais, multi-paradigmes)
+
+## Le projet
+
+L'objectif du projet est de mettre sur pied un outil d'analyse de texte pour la veille scientifique.
+Nous voulons examiner le corpus d'articles déposés sur le site [ArXiv](htpps://arxiv.org), une immense base de documents scientifiques en pré-publication, c'est-à-dire à une étape où les résultats de recherche n'ont pas encore été relus par des pairs.
+A ce stade, les articles n'ont pas encore été acceptés par des revues scientifiques et ne sont donc pas soumis au droit (et aux frais !) d'accès.
+
+**ArXiv** étant un dépôt qui rassemble de nombreuses disciplines, nous vourons nous limiter à un partie des ressources, par exemple celle qui concerne l'informatique et l'apprentissage automatique.
+
+Pour établir la portée de l'exploration, nous choisirons certaines catégories, ou domaines de recherche, qu'ArXiv appelle des **contextes**. Ceux-ci sont référencés par des codes, comme `cs` pour l'informatique (Computer Science) ou `math` pour les mathématiques, ou `econ`pour l'économie.
+
+Dans sa forme définitive, notre projet devrait scruter les nouvelles publications du domaine choisi en consultant l'API d'ArXiv (il existe un module Python pour cela), mais dans un premier temps, nous voulons constituer une base qui reprenne l'historique des publications.
+Heureusement, il existe une archive, consituée par l'université Cornell, qui contient un grand nombre d'article déjà déposés. Cette archive peut être téléchargée dpuis **Kaggle**.
+
+En complément, nous voudrons établir une veille sur le site [Hacker News], afin de collecter des informations, des commentaires, ou encore des éléments d'actualité sur les projets de recherche publiés.
+
+Une fois cette archive installée, les différentes pmhases du projet consisteront à :
+
+1. Installer l'ensmble des outils logiciels nécessaires et vérifier leur bon fonctionnement
+2. Comprendre la structure du jeu de données initial
+3. Importer les données brutes dans un espace de stockage initial (en l'occurrence MinIO)
+4. Modéliser les données de manière à configurer Elasticsearch
+5. Mettre ern œuvre un processus d'examen de la qualité des données (parenthèse DataOps)
+6. Transformer les données pour les projeter dans Elasticsearch
+7. Interroger les données avec Kibana
+8. Orchester le tout avec Airflow
+9. Eventuellement, tracer des pistes d'amélioration du pipeline
+
+## Ce que vous trouverez ici :
+
+### Docker
+
+Le fichier `docker-compose.yml` contient normalement tout ce qu'il faut pour pouvoir lancer les outils de manière fluide.
+
+Dans un premier temps, la solution choisie est « hybride », c'est-à-dire que les scripts Python (et Python lui-même) sont installés sur la machine locale et seules les applications sont encapsulées dans des conteneurs.
+
+En fin de parcours, iserait peut-être nécessaire de tout mettre dans un espace virtuel Docker.
+
+### Les supports
+
+Vous trouverez un certain nombre de fichier préfixés par `PAD-xx`. Ce sont les rappels théoriques à propos de toutes les étapes apr lesquelles vous devrez passer pour achever le projet. La numérotation correspond à des chapitres du projet. Elle est uniforme pour tous les types de fichiers.
+
+### Les énoncés de TP
+
+Tous les fichiers préfixés `TP-xxC` sont les énoncés des exercices à faire.
+
+### Les mémentos
+
+Tous les fichiers préfixés `MEM-xx` sont des mémentos récapitulant les ressources — modules, fonctons, etc. — dont vous aurez besoin pourécrire le code de chaque étape du projet.
