@@ -1,4 +1,4 @@
-# TP 1 : Prise en main de la pile de traitement de donnnées diu porjet SciPulse
+# TP 1 : Prise en main de la pile de traitement de donnnées du projet SciPulse
 
 ## Objectif du TP
 
