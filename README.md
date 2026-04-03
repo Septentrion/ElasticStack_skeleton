@@ -60,3 +60,7 @@ Tous les fichiers préfixés `TP-xxE` sont les énoncés des exercices à faire.
 ### Les mémentos
 
 Tous les fichiers préfixés `MEM-xx` sont des mémentos récapitulant les ressources — modules, fonctons, etc. — dont vous aurez besoin pourécrire le code de chaque étape du projet.
+
+### Le syllabus complet du cours :
+
+- [Syllabus](Syllabus_ES.md)
