@@ -508,7 +508,7 @@ Attendez que tous les services soient `healthy` ou `running`, puis vérifiez un 
 
 ```bash
 # Santé du cluster
-curl -s http://localhost:9200/_cluster/health?pretty
+curl -s 'http://localhost:9200/_cluster/health?pretty'
 ```
 
 Vous devez voir :
@@ -599,6 +599,52 @@ Ne les activez pas encore — nous les utiliserons au Jour 4.
 | Port déjà utilisé | Un autre service écoute | `docker compose down` puis vérifier `lsof -i :9200` |
 | Airflow init échoue | DB pas encore prête | `docker compose restart airflow-init` |
 | MinIO buckets manquants | Init trop rapide | `docker compose restart minio-init` |
+
+---
+
+> ### ⚠️ Où s'exécutent vos commandes ? Hôte vs. conteneur Docker
+>
+> C'est la source de confusion la plus fréquente du TP. Prenez 3 minutes pour bien comprendre ce point — il vous évitera des heures de débogage.
+>
+> **Dans ce cours, deux contextes d'exécution coexistent :**
+>
+> **1. Votre machine hôte** (le terminal de votre laptop) : c'est là que vous exécutez les scripts Python pendant les TPs des Jours 1-3. Depuis l'hôte, les services Docker sont accessibles via `localhost` grâce au mapping de ports :
+>
+> ```
+> Hôte                          Conteneur Docker
+> ────                          ────────────────
+> localhost:9200     ──────▶    elasticsearch:9200
+> localhost:5601     ──────▶    kibana:5601
+> localhost:5432     ──────▶    postgres:5432
+> localhost:9000     ──────▶    minio:9000
+> localhost:8080     ──────▶    airflow-webserver:8080
+> ```
+>
+> Quand vous tapez `python -m src.ingestion.arxiv_bulk_ingest` dans votre terminal, le script utilise `http://localhost:9200` et ça fonctionne — le port est redirigé vers le conteneur Elasticsearch.
+>
+> **2. L'intérieur d'un conteneur Docker** : c'est là que s'exécutent les tâches Airflow (Jour 4), les pipelines Logstash, et toute commande lancée via `docker exec`. Depuis un conteneur, `localhost` désigne **le conteneur lui-même**, pas votre machine. Pour atteindre Elasticsearch depuis un autre conteneur, il faut utiliser le **nom de service Docker** : `http://elasticsearch:9200`.
+>
+> ```
+> Depuis l'hôte (Jours 1-3)           Depuis un conteneur (Jour 4)
+> ─────────────────────────           ────────────────────────────
+> http://localhost:9200               http://elasticsearch:9200
+> host=localhost (PG)                 host=postgres (PG)
+> http://localhost:9000               http://minio:9000
+> ```
+>
+> **C'est pourquoi nos scripts utilisent des variables d'environnement :**
+>
+> ```python
+> import os
+> ES_HOST = os.getenv("ES_HOST", "http://localhost:9200")
+> ```
+>
+> - **Depuis l'hôte** : pas de variable définie → valeur par défaut `localhost:9200` → ça fonctionne.
+> - **Depuis un conteneur Airflow** : la variable `ES_HOST=http://elasticsearch:9200` est définie dans `docker-compose.yml` → le script utilise le bon hostname.
+>
+> **Règle pratique** : pendant les Jours 1-3, vous travaillez depuis votre terminal hôte, tout utilise `localhost`. Au Jour 4, les scripts tournent dans Airflow (conteneur Docker), tout utilise les noms de services. Le code est le même — seule la variable d'environnement change.
+>
+> Si un script échoue avec `ConnectionError: Connection refused`, la première question à se poser est : « suis-je en train d'exécuter cette commande depuis l'hôte ou depuis un conteneur ? » et « est-ce que j'utilise le bon hostname ? ».
 
 ---
 
