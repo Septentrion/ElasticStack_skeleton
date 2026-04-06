@@ -542,28 +542,13 @@ def transform_article(raw: dict) -> dict:
     Transforme un article ArXiv brut en document prêt à indexer.
     Équivalent Python des filtres Logstash (mutate, date, split, ruby).
     """
-    # Éclatement des catégories (équivalent du mutate split)
-    categories_str = raw.get("categories", "")
-    categories = categories_str.split() if categories_str else []
+    # 1. Éclatement des catégories (équivalent du mutate split)
 
-    # Nettoyage de l'abstract (équivalent du mutate gsub + strip)
-    abstract = raw.get("abstract", "")
-    abstract = abstract.replace("\n", " ").strip()
+    # 2. Nettoyage de l'abstract (équivalent du mutate gsub + strip)
 
-    # Nettoyage du titre
-    title = raw.get("title", "").strip()
+    # 3. Nettoyage du titre
 
-    # Construction du document transformé
-    doc = {
-        "arxiv_id":          raw.get("id"),
-        "title":             title,
-        "abstract":          abstract,
-        "authors":           raw.get("authors", ""),
-        "categories":        categories,
-        "primary_category":  categories[0] if categories else None,
-        "date_updated":      raw.get("update_date"),
-        "doi":               raw.get("doi"),
-    }
+    # 4. Construction du document transformé
 
     return doc
 ```
@@ -587,7 +572,7 @@ Ajoutez cette fonction qui lit le fichier JSON ligne par ligne et produit des «
 ```python
 def generate_actions(filepath: str):
     """
-    Générateur qui lit un fichier JSON lines et produit des actions bulk ES.
+    Générateur qui lit un fichier JSON ligne par ligne et produit des actions bulk ES.
     Utilise un générateur (yield) pour ne pas charger tout le fichier en mémoire.
     """
     with open(filepath, "r", encoding="utf-8") as f:
@@ -596,25 +581,21 @@ def generate_actions(filepath: str):
             if not line:
                 continue
 
+            # 1. Lire la ligne JSON
+            # en traitant les erreurs 
             try:
-                raw = json.loads(line)
+                pass
             except json.JSONDecodeError as e:
-                print(f"  ⚠️  Ligne {line_number} : JSON invalide — {e}")
-                continue
+                pass
+             
+            # 2. Normaliser les données de l'article
+            # avec la fonction transform_article   
 
-            doc = transform_article(raw)
-
-            # Vérification minimale : l'arxiv_id doit exister
-            if not doc.get("arxiv_id"):
-                print(f"  ⚠️  Ligne {line_number} : pas d'ID ArXiv, ignorée")
-                continue
-
-            # Action bulk : _index, _id et _source
-            yield {
-                "_index":  INDEX_NAME,
-                "_id":     doc["arxiv_id"],   # Idempotence !
-                "_source": doc,
-            }
+            # 3. Vérification minimale : l'arxiv_id doit exister
+            # Sinon l est simplement ignoré
+            
+            # Action bulk au format ES
+            # Attention ! `generate_actions est un générateur
 ```
 
 **Points importants à comprendre :**
@@ -633,52 +614,29 @@ Ajoutez la fonction qui orchestre le tout :
 def ingest(filepath: str):
     """Ingestion bulk du fichier ArXiv dans Elasticsearch."""
 
-    # Connexion à Elasticsearch
-    es = Elasticsearch(ES_HOST)
-
-    # Vérification de la connexion
+    # 1. Connexion à Elasticsearch
+    
+    # 2. Vérification de la connexion
     try:
-        info = es.info()
-        print(f"✅ Connecté à Elasticsearch ({info['cluster_name']})")
+        pass
     except Exception as e:
-        print(f"❌ Impossible de se connecter à Elasticsearch : {e}")
-        print(f"   Vérifiez que ES tourne sur {ES_HOST}")
-        sys.exit(1)
+        pass
+        
+    # 3. Suppression de l'index existant (pour repartir de zéro)
 
-    # Suppression de l'index existant (pour repartir de zéro)
-    if es.indices.exists(index=INDEX_NAME):
-        es.indices.delete(index=INDEX_NAME)
-        print(f"🗑  Index '{INDEX_NAME}' supprimé")
-
-    # Ingestion via l'API bulk
+    # 4. Ingestion via l'API bulk
     print(f"\n📥 Ingestion de {filepath} → index '{INDEX_NAME}'")
     print(f"   Taille des lots : {BATCH_SIZE} documents\n")
+    
+    # 4.1 Variables de traçage (optionnel) : temps, nombre de lots, erreurs
 
-    start_time = time.time()
-    success_count = 0
-    error_count = 0
-
-    # helpers.bulk gère automatiquement le découpage en lots
+    # 4.2 Ingestion
+    # helpers.streaming_bulk gère automatiquement le découpage en lots
+    # Pour chaque lot, exécuter la fonction generate_actions
     for ok, result in helpers.streaming_bulk(
-        es,
-        generate_actions(filepath),
-        chunk_size=BATCH_SIZE,
-        raise_on_error=False,     # Ne pas planter sur les erreurs individuelles
-    ):
-        if ok:
-            success_count += 1
-        else:
-            error_count += 1
-            print(f"  ❌ Erreur : {result}")
+        pass
 
-        # Affichage de la progression tous les 10 000 documents
-        total = success_count + error_count
-        if total % 10_000 == 0:
-            elapsed = time.time() - start_time
-            rate = total / elapsed if elapsed > 0 else 0
-            print(f"  📊 {total:>7,} documents traités ({rate:,.0f} docs/sec)")
-
-    # Bilan
+    # 5. Bilan
     elapsed = time.time() - start_time
     rate = success_count / elapsed if elapsed > 0 else 0
 
@@ -689,10 +647,9 @@ def ingest(filepath: str):
     print(f"  🚀 Débit   : {rate:,.0f} documents/seconde")
     print(f"{'═' * 50}")
 
-    # Forcer le rafraîchissement de l'index pour que les documents soient cherchables
-    es.indices.refresh(index=INDEX_NAME)
+    # 6. Forcer le rafraîchissement de l'index pour que les documents soient cherchables
 
-    # Vérification finale
+    # 7. Vérification finale
     count = es.count(index=INDEX_NAME)["count"]
     print(f"\n🔍 Vérification : {count:,} documents dans l'index '{INDEX_NAME}'")
 ```
