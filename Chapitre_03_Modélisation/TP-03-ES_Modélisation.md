@@ -169,7 +169,7 @@ GET /arxiv-papers-raw/_search
 
 ### 2.1. Comprendre le mapping que nous allons créer
 
-Le fichier `src/utils/mappings.py` du starter kit contient déjà le mapping complet. Ouvrons-le et parcourons-le :
+Le fichier `src/utils/mappings.py` permet la configuration des index :
 
 ```bash
 code src/utils/mappings.py
@@ -293,7 +293,7 @@ Champ par champ, voici les choix et leurs raisons :
 
 ### 2.4. Créer l'index via le script Python
 
-Le plus simple est d'utiliser le script fourni :
+Ecrivez le script Python `mappings.py`, puis exécutez-le :
 
 ```bash
 python -m src.utils.mappings
@@ -440,40 +440,26 @@ def parse_authors(authors_str: str) -> tuple[list[dict], str]:
     if not authors_str:
         return [], ""
 
-    # Séparer par " and " ou par virgule suivie d'une majuscule
+    # 1. Séparer par " and " ou par virgule suivie d'une majuscule
     # (heuristique simple — pas parfait mais fonctionnel pour le TP)
-    parts = re.split(r",\s+(?=[A-Z])|\s+and\s+", authors_str.strip())
+    # indice : utiliser une expression régulière
 
     authors = []
-    for part in parts:
-        part = part.strip().strip(",").strip()
-        if part:
-            authors.append({"name": part})
-
+    # 2. Reconstruire un tableau propore des auteurs
+    
     return authors, authors_str
 
 
 def transform_for_reindex(hit: dict) -> dict:
-    """Transforme un document source en document destination."""
-    source = hit["_source"]
+    """
+    Transforme un document source en document destination.
+    """
+    # 1. Récupérer la source du document
 
-    # Parser les auteurs
-    authors_raw = source.get("authors", "")
-    authors_nested, authors_flat = parse_authors(authors_raw)
+    # 2. Parser les auteurs (cf. parse_authors)
 
-    doc = {
-        "arxiv_id":         source.get("arxiv_id"),
-        "title":            source.get("title", "").strip(),
-        "abstract":         source.get("abstract", "").replace("\n", " ").strip(),
-        "authors":          authors_nested,
-        "authors_flat":     authors_flat,
-        "categories":       source.get("categories", []),
-        "primary_category": source.get("primary_category"),
-        "date_published":   source.get("date_updated"),   # Le dump ArXiv n'a que update_date
-        "date_updated":     source.get("date_updated"),
-        "doi":              source.get("doi"),
-    }
-
+    # 3. Reconstruire la source di document
+    # 
     return doc
 
 
@@ -484,18 +470,14 @@ def scroll_source(es: Elasticsearch) -> int:
 
 def generate_actions(es: Elasticsearch):
     """Générateur : lit l'index source et produit des actions pour l'index destination."""
-    # scan() parcourt l'index entier de manière efficace (scroll API)
-    for hit in helpers.scan(es, index=SOURCE_INDEX, query={"query": {"match_all": {}}}, size=BATCH_SIZE):
-        doc = transform_for_reindex(hit)
+    # 1. Scanner l'index entier de manière efficace (scroll API) pour transformer chaque document
 
-        if not doc.get("arxiv_id"):
-            continue
+        # 1.1 Transformer le document
+        
+        # 1.2  Ignorer l'article s'il ne possède pas d'id Arxiv
 
-        yield {
-            "_index":  DEST_INDEX,
-            "_id":     doc["arxiv_id"],
-            "_source": doc,
-        }
+        # 1.3 Reteourner un documet ES
+        # Attention ! On utilise ici un générateur
 
 
 def main():
@@ -515,16 +497,10 @@ def main():
         print(f"❌ Connexion impossible : {e}")
         sys.exit(1)
 
-    if not es.indices.exists(index=SOURCE_INDEX):
-        print(f"❌ L'index source '{SOURCE_INDEX}' n'existe pas.")
-        print(f"   Avez-vous complété le TP du Jour 1 ?")
-        sys.exit(1)
+    # 1. Vérifier que l'index d'origine existe
 
-    if not es.indices.exists(index=DEST_INDEX):
-        print(f"❌ L'index destination '{DEST_INDEX}' n'existe pas.")
-        print(f"   Exécutez d'abord : python -m src.utils.mappings")
-        sys.exit(1)
-
+    # 2. Vérifier que l'oindex de destination existe (sinon, sortir)
+    
     source_count = scroll_source(es)
     print(f"📂 Source : '{SOURCE_INDEX}' — {source_count:,} documents")
     print(f"📂 Dest.  : '{DEST_INDEX}'")
@@ -532,16 +508,7 @@ def main():
     # Vider l'index destination s'il contient déjà des données
     dest_count = es.count(index=DEST_INDEX)["count"]
     if dest_count > 0:
-        print(f"\n⚠️  L'index destination contient déjà {dest_count:,} documents.")
-        print(f"   Suppression et recréation...")
-        # Sauvegarder le mapping, supprimer, recréer
-        mapping = es.indices.get(index=DEST_INDEX)[DEST_INDEX]
-        es.indices.delete(index=DEST_INDEX)
-        es.indices.create(index=DEST_INDEX, body={
-            "settings": mapping.get("settings", {}).get("index", {}),
-            "mappings": mapping.get("mappings", {}),
-        })
-        print(f"   ✅ Index '{DEST_INDEX}' recréé (vide)")
+        # 3. Que faire si l'index contient déjà des articles
 
     # Réindexation
     print(f"\n🔄 Réindexation en cours...\n")
