@@ -64,3 +64,6 @@ Tous les fichiers préfixés `MEM-xx` sont des mémentos récapitulant les resso
 ### Le syllabus complet du cours :
 
 - [Syllabus](Syllabus_ES.md)
+
+## Auteur & contact :
+- [Michel Cadennes](mailto:michel.cadennes@sens-commun.fr)
