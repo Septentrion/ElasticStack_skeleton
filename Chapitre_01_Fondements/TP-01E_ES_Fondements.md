@@ -184,7 +184,7 @@ Suivez la progression :
 docker compose ps
 
 # Suivre les logs en temps réel (Ctrl+C pour quitter)
-docker compose logs -f
+docker compose logs -f | tail 50
 ```
 
 ### 3.2. Vérification de chaque service
@@ -393,7 +393,7 @@ Avant de charger quoi que ce soit, **regardons les données**. C'est un réflexe
 wc -l data/arxiv-raw/arxiv-cs-subset-100k.json
 
 # Premiers articles
-head -3 data/arxiv-raw/arxiv-cs-subset-100k.json | python -m json.tool
+head -3 data/arxiv-raw/arxiv-cs-subset-100k.json # | python -m json.tool
 ```
 
 Observez et notez :
