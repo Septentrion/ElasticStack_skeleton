@@ -284,3 +284,137 @@ POST /catalogue/_analyze
 L'**ordre des token filters** compte beaucoup. Par exemple, `lowercase` doit venir avant `synonym` si vos synonymes sont définis en minuscules, sinon ils ne seront jamais matchés. De même, `asciifolding` avant `stop` permet d'utiliser une liste de mots vides sans accents.
 
 Enfin, un analyzer ne peut pas être modifié sur un index existant sans le fermer (`_close`), mettre à jour les settings, puis le rouvrir (`_open`), ou bien réindexer dans un nouvel index.
+
+## Associer plusieurs analyzers à un même champ : les multi-fields
+
+La bonne pratique dans Elasticsearch est d'utiliser les **multi-fields** (propriété `fields` dans le mapping). Le principe : un même champ source est indexé plusieurs fois, chacun avec un analyzer différent, sous des sous-noms distincts.
+
+### Exemple de base
+
+```json
+PUT /articles
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "stemmer_fr": {
+          "type": "stemmer",
+          "language": "light_french"
+        },
+        "mots_vides_fr": {
+          "type": "stop",
+          "stopwords": "_french_"
+        }
+      },
+      "analyzer": {
+        "fr_full": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "asciifolding", "mots_vides_fr", "stemmer_fr"]
+        },
+        "fr_exact": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase"]
+        },
+        "trigrams": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "ngram_filter"]
+        }
+      },
+      "filter": {
+        "ngram_filter": {
+          "type": "ngram",
+          "min_gram": 3,
+          "max_gram": 4
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "titre": {
+        "type": "text",
+        "analyzer": "fr_full",
+        "fields": {
+          "exact": {
+            "type": "text",
+            "analyzer": "fr_exact"
+          },
+          "autocomplete": {
+            "type": "text",
+            "analyzer": "trigrams",
+            "search_analyzer": "fr_exact"
+          },
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Ici, le champ `titre` est indexé sous quatre formes différentes, sans aucune duplication côté `_source` :
+
+| Chemin d'accès | Analyzer | Usage typique |
+|---|---|---|
+| `titre` | `fr_full` | Recherche plein texte avec stemming |
+| `titre.exact` | `fr_exact` | Recherche exacte sans stemming |
+| `titre.autocomplete` | `trigrams` / `fr_exact` | Autocomplétion partielle |
+| `titre.keyword` | aucun (terme brut) | Agrégations, tri, filtres exacts |
+
+### Exploiter les multi-fields dans les requêtes
+
+L'intérêt principal est de pouvoir combiner ces variantes dans une requête `multi_match` ou `bool`, en pondérant chaque sous-champ différemment :
+
+```json
+GET /articles/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "réfrigérateur encastrable",
+      "fields": [
+        "titre^3",
+        "titre.exact^5",
+        "titre.autocomplete"
+      ],
+      "type": "best_fields"
+    }
+  }
+}
+```
+
+La logique ici : une correspondance exacte (sans stemming) sur `titre.exact` est la plus valorisée, suivie par la recherche stemmée sur `titre`, puis l'autocomplétion en dernier recours. Cela donne des résultats à la fois précis et tolérants.
+
+### Bonnes pratiques à retenir
+
+**Nommer les sous-champs selon leur rôle**, pas selon leur implémentation technique. Préférez `.exact`, `.autocomplete`, `.keyword` à `.ngram_analyzer_v2`. Le jour où vous changez d'analyzer, le nom reste cohérent.
+
+**Ne pas multiplier les sous-champs inutilement.** Chaque sous-champ consomme de l'espace disque et de la RAM (segments inversés supplémentaires). Trois ou quatre variantes est un maximum raisonnable pour un champ courant.
+
+**Distinguer `analyzer` et `search_analyzer`** sur les sous-champs à base de n-grams ou edge-ngrams. À l'indexation, on génère les n-grams, mais à la recherche on tokenize normalement, sinon la requête `"réf"` matcherait beaucoup trop largement.
+
+**Utiliser le sous-champ `.keyword`** dès qu'on a besoin d'agrégations, de tri ou de filtres stricts sur le champ. C'est quasi systématique.
+
+**Penser au `copy_to`** si plusieurs champs sources doivent alimenter un champ de recherche global :
+
+```json
+"titre":       { "type": "text", "copy_to": "recherche_globale" },
+"description": { "type": "text", "copy_to": "recherche_globale" },
+"recherche_globale": {
+  "type": "text",
+  "analyzer": "fr_full",
+  "fields": {
+    "exact": { "type": "text", "analyzer": "fr_exact" }
+  }
+}
+```
+
+Cela évite de lister tous les champs dans chaque requête `multi_match`.
+
+### Résumé du pattern
+
+La règle générale : **un champ, un analyzer principal, des `fields` pour les variantes, et `multi_match` ou `bool` pour combiner le tout à la recherche avec des poids adaptés.** C'est le mécanisme idiomatique d'Elasticsearch pour ce besoin, bien plus propre que de dupliquer les données dans des champs séparés.
