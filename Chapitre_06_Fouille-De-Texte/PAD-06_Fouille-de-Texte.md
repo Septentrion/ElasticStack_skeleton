@@ -515,6 +515,10 @@ C'est l'équivalent d'un `GROUP BY ... ORDER BY COUNT(*) DESC LIMIT 20` en SQL. 
 
 Cette requête produit un histogramme mensuel avec, pour chaque mois, les 3 catégories les plus actives. C'est la base des visualisations temporelles dans Kibana.
 
+| Option | Signification |
+|---|---|
+| `size` | Equivalent à un LIMIT de SQL : ne retourne que les `n` résultats lesplus pertinents |
+
 ### 5.4. Agrégations imbriquées
 
 Les agrégations peuvent être imbriquées pour créer des analyses multi-dimensionnelles :
